@@ -1,4 +1,4 @@
-# Convex backend — Pentagon Hotel
+# Convex backend — Pentagon International Hotel
 
 This directory is the single source of truth for the hotel's content, bookings and
 enquiries. The dashboard (this app) writes to it; the public website reads from it.

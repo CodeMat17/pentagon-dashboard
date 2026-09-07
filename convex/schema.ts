@@ -27,6 +27,35 @@ export const roomCategory = v.union(
   v.literal("Family"),
 );
 
+/** Where a reservation is in its life, from booked to walked in or released. */
+export const bookingStatus = v.union(
+  v.literal("pending"),
+  v.literal("confirmed"),
+  v.literal("checked-in"),
+  v.literal("completed"),
+  v.literal("cancelled"),
+  v.literal("no-show"),
+);
+
+/** The messages the system sends a guest about a reservation, unprompted. */
+export const notificationKind = v.union(
+  v.literal("confirmation"),
+  v.literal("reminder-day-before"),
+  v.literal("reminder-arrival"),
+  v.literal("cancellation"),
+);
+
+/** One delivery attempt, appended to the booking so staff can see what went out. */
+export const notification = v.object({
+  /** `whatsapp` is retired — kept so deliveries logged before the move validate. */
+  channel: v.union(v.literal("email"), v.literal("sms"), v.literal("whatsapp")),
+  kind: notificationKind,
+  status: v.union(v.literal("sent"), v.literal("failed"), v.literal("skipped")),
+  /** The provider's message id when sent, or the reason when not. */
+  detail: v.string(),
+  at: v.number(),
+});
+
 export const role = v.union(
   v.literal("owner"),
   v.literal("admin"),
@@ -238,15 +267,20 @@ export default defineSchema({
 
   /* --------------------------------------------------------------- inbound */
 
+  /**
+   * Reservations.
+   *
+   * Nothing is paid online: a reservation holds a room against the guest's name
+   * and is settled at the hotel. That makes the *hold* the load-bearing field —
+   * `holdUntil` is the moment on the arrival date after which an unclaimed and
+   * uncommunicated reservation becomes a no-show and the room goes back on sale.
+   *
+   * Every field added after the first release is optional, so rows written by
+   * the previous version of the site stay valid without a migration.
+   */
   bookings: defineTable({
     reference: v.string(),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("confirmed"),
-      v.literal("checked-in"),
-      v.literal("completed"),
-      v.literal("cancelled"),
-    ),
+    status: bookingStatus,
     roomSlug: v.string(),
     roomName: v.string(),
     checkIn: v.string(),
@@ -260,6 +294,7 @@ export default defineSchema({
     guest: v.object({
       firstName: v.string(),
       lastName: v.string(),
+      /** May be empty: the phone number is the mandatory channel, email is not. */
       email: v.string(),
       phone: v.string(),
       country: v.string(),
@@ -268,10 +303,20 @@ export default defineSchema({
     }),
     total: v.number(),
     note: v.optional(v.string()),
+
+    /** Always "pay-at-hotel" today; a field so a future rate plan can differ. */
+    payment: v.optional(v.literal("pay-at-hotel")),
+    /** `yyyy-mm-ddThh:mm` — the room is held until this instant on arrival day. */
+    holdUntil: v.optional(v.string()),
+    /** What we sent the guest, and whether it landed. Newest last. */
+    notifications: v.optional(v.array(notification)),
+    /** `notificationKind`s already dispatched, so a cron never sends twice. */
+    remindersSent: v.optional(v.array(v.string())),
   })
     .index("by_reference", ["reference"])
     .index("by_status", ["status"])
-    .index("by_checkIn", ["checkIn"]),
+    .index("by_checkIn", ["checkIn"])
+    .index("by_status_checkIn", ["status", "checkIn"]),
 
   messages: defineTable({
     kind: v.union(
@@ -315,5 +360,19 @@ export default defineSchema({
     announcement: v.string(),
     announcementActive: v.boolean(),
     bookingsOpen: v.boolean(),
+
+    /* --- reservation & no-show policy. Optional: added after first release. --- */
+
+    /** Local time on the arrival date after which an unclaimed room is released. */
+    holdUntilTime: v.optional(v.string()),
+    /** Shown at booking, in the confirmation email and on the reservation page. */
+    cancellationPolicy: v.optional(v.string()),
+    noShowPolicy: v.optional(v.string()),
+    /** Kill switch for the day-before and arrival-day messages. */
+    remindersEnabled: v.optional(v.boolean()),
+    /** Kill switch for every SMS send. Email is never switched off. */
+    smsEnabled: v.optional(v.boolean()),
+    /** Retired with the WhatsApp channel; still stored on rows saved before it. */
+    whatsappEnabled: v.optional(v.boolean()),
   }).index("by_key", ["key"]),
 });

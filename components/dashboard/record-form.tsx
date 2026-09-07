@@ -25,7 +25,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageInput, ImagesInput, type StoredImage } from "@/components/dashboard/image-input";
-import { slugify } from "@/lib/format";
+import { formatTime12, parseTime12, slugify } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -49,9 +49,19 @@ interface Base {
 }
 
 export type Field =
-  | (Base & { kind: "text" | "slug"; placeholder?: string })
+  | (Base & { kind: "text"; placeholder?: string })
+  | (Base & {
+      kind: "slug";
+      placeholder?: string;
+      /**
+       * Derive the slug from another field rather than letting anyone type it.
+       * The control renders read-only and re-slugifies whenever that field changes.
+       */
+      from?: string;
+    })
   | (Base & { kind: "textarea"; rows?: number; placeholder?: string })
   | (Base & { kind: "number" | "currency" | "percent"; step?: number })
+  | (Base & { kind: "time" })
   | (Base & { kind: "switch"; onLabel?: string })
   | (Base & { kind: "select"; options: readonly string[] })
   | (Base & { kind: "list"; placeholder?: string })
@@ -161,7 +171,16 @@ export function FieldGrid({
   values: Values;
   onChange: (values: Values) => void;
 }) {
-  const set = (name: string, value: unknown) => onChange({ ...values, [name]: value });
+  const set = (name: string, value: unknown) => {
+    const next = { ...values, [name]: value };
+    // Keep derived slugs in step with the field they are generated from.
+    for (const field of fields) {
+      if (field.kind === "slug" && field.from === name) {
+        next[field.name] = slugify(String(value ?? ""));
+      }
+    }
+    onChange(next);
+  };
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -204,7 +223,8 @@ function FieldControl({
 
   switch (field.kind) {
     case "text":
-    case "slug":
+    case "slug": {
+      const derived = field.kind === "slug" && field.from !== undefined;
       return (
         <>
           <Label htmlFor={id}>{field.label}</Label>
@@ -212,20 +232,29 @@ function FieldControl({
             id={id}
             value={(value as string) ?? ""}
             placeholder={field.placeholder}
-            onChange={(event) =>
-              set(
-                field.name,
-                field.kind === "slug" ? slugify(event.target.value) : event.target.value,
-              )
+            readOnly={derived}
+            tabIndex={derived ? -1 : undefined}
+            className={cn(derived && "bg-muted text-muted-foreground")}
+            onChange={
+              derived
+                ? undefined
+                : (event) =>
+                    set(
+                      field.name,
+                      field.kind === "slug"
+                        ? slugify(event.target.value)
+                        : event.target.value,
+                    )
             }
             onBlur={
-              field.kind === "slug"
+              field.kind === "slug" && !derived
                 ? () => set(field.name, slugify((value as string) ?? ""))
                 : undefined
             }
           />
         </>
       );
+    }
 
     case "textarea":
       return (
@@ -306,6 +335,18 @@ function FieldControl({
       );
     }
 
+    case "time":
+      return (
+        <>
+          <Label htmlFor={id}>{field.label}</Label>
+          <TimeField
+            id={id}
+            value={(value as string) ?? ""}
+            onChange={(next) => set(field.name, next)}
+          />
+        </>
+      );
+
     case "list":
       return (
         <ListField
@@ -372,6 +413,47 @@ function FieldControl({
 }
 
 /* ------------------------------------------------------------- list of text */
+
+/**
+ * A clock the desk can read: shows and accepts `8:00 pm`, stores `20:00`.
+ *
+ * The 24-hour string stays the value in state — Convex, the reminder crons and
+ * the guest wording all depend on it — so the 12-hour text lives only while the
+ * field has focus. On blur an unreadable entry snaps back to what was stored
+ * rather than saving a time nobody meant.
+ */
+export function TimeField({
+  id,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  /** For the callers that place this without a visible <Label>. */
+  ariaLabel?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <Input
+      id={id}
+      aria-label={ariaLabel}
+      className="numeric"
+      inputMode="text"
+      placeholder="8:00 pm"
+      value={draft ?? formatTime12(value)}
+      onChange={(event) => setDraft(event.target.value)}
+      onFocus={() => setDraft(formatTime12(value))}
+      onBlur={() => {
+        const parsed = draft === null ? null : parseTime12(draft);
+        if (parsed) onChange(parsed);
+        setDraft(null);
+      }}
+    />
+  );
+}
 
 function ListField({
   label,

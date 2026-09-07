@@ -4,6 +4,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { DataModel, TableNames } from "./_generated/dataModel";
 import { requireAdmin } from "./auth";
+import { DEFAULTS } from "./policy";
 
 /**
  * Database half of `seed.ts`.
@@ -99,8 +100,8 @@ export const replaceAll = internalMutation({
         key: "site",
         phone: "08033833628",
         whatsapp: "2348033833628",
-        email: "hello@pentagonhotelandsuites.com",
-        reservationsEmail: "reservations@pentagonhotelandsuites.com",
+        email: "info@pentagoninternationalhotel.com",
+        reservationsEmail: "reservations@pentagoninternationalhotel.com",
         address:
           "1 Solomon Wali Street, Owhipa Choba, Port Harcourt, Rivers State, Nigeria",
         checkIn: "14:00",
@@ -110,6 +111,11 @@ export const replaceAll = internalMutation({
         announcement: "",
         announcementActive: false,
         bookingsOpen: true,
+        holdUntilTime: DEFAULTS.holdUntilTime,
+        cancellationPolicy: DEFAULTS.cancellationPolicy,
+        noShowPolicy: DEFAULTS.noShowPolicy,
+        remindersEnabled: true,
+        smsEnabled: true,
       });
     }
 

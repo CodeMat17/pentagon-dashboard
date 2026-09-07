@@ -12,6 +12,9 @@ import { requireViewer } from "./auth";
  * counted exactly.
  */
 
+/** Statuses that no longer represent a stay the hotel expects to happen. */
+const DEAD = new Set(["cancelled", "no-show"]);
+
 const CAP = 500;
 
 export const overview = query({
@@ -34,7 +37,7 @@ export const overview = query({
       ]);
 
     const revenue = upcoming
-      .filter((booking) => booking.status !== "cancelled")
+      .filter((booking) => !DEAD.has(booking.status))
       .reduce((sum, booking) => sum + booking.total, 0);
 
     return {
@@ -43,7 +46,7 @@ export const overview = query({
       posts: { total: posts.length, published: posts.filter((p) => p.published).length },
       galleryCount: gallery.length,
       unreadMessages: newMessages.length,
-      upcomingStays: upcoming.filter((b) => b.status !== "cancelled").length,
+      upcomingStays: upcoming.filter((b) => !DEAD.has(b.status)).length,
       upcomingRevenue: revenue,
       recentBookings: recentBookings.slice(0, 6).map((booking) => ({
         _id: booking._id,

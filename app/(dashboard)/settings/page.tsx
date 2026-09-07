@@ -35,8 +35,8 @@ const fields: readonly Field[] = [
   { name: "email", label: "General email", kind: "text" },
   { name: "reservationsEmail", label: "Reservations email", kind: "text" },
   { name: "address", label: "Address", kind: "textarea", rows: 2 },
-  { name: "checkIn", label: "Check-in from", kind: "text" },
-  { name: "checkOut", label: "Check-out by", kind: "text" },
+  { name: "checkIn", label: "Check-in from", kind: "time" },
+  { name: "checkOut", label: "Check-out by", kind: "time" },
   { name: "vatRate", label: "VAT rate", kind: "percent", hint: "0.075 = 7.5%." },
   { name: "serviceRate", label: "Service charge", kind: "percent", hint: "0.05 = 5%." },
   {
@@ -53,6 +53,38 @@ const fields: readonly Field[] = [
     kind: "switch",
     hint: "Turning this off stops the website taking new reservations immediately.",
   },
+  {
+    name: "holdUntilTime",
+    label: "Hold rooms until",
+    kind: "time",
+    hint: "A time on the arrival date, e.g. 8:00 pm. After it passes, an unclaimed reservation becomes a no-show and the room is released automatically.",
+  },
+  {
+    name: "cancellationPolicy",
+    label: "Cancellation policy",
+    kind: "textarea",
+    rows: 3,
+    hint: "Shown before the guest confirms, in the confirmation email, and on their reservation page.",
+  },
+  {
+    name: "noShowPolicy",
+    label: "No-show policy",
+    kind: "textarea",
+    rows: 3,
+    hint: "How the hold works, in the guest's own words. Say plainly what happens if they neither arrive nor call.",
+  },
+  {
+    name: "remindersEnabled",
+    label: "Send stay reminders",
+    kind: "switch",
+    hint: "One message the evening before arrival, one on the day. These are what stop reservations being forgotten.",
+  },
+  {
+    name: "smsEnabled",
+    label: "Send confirmation SMS",
+    kind: "switch",
+    hint: "One text when a booking is made and one if it is cancelled — SMS is billed per message, so reminders are email only. Off falls back to email alone.",
+  },
 ];
 
 const DEFAULTS: Values = {
@@ -68,6 +100,13 @@ const DEFAULTS: Values = {
   announcement: "",
   announcementActive: false,
   bookingsOpen: true,
+  holdUntilTime: "20:00",
+  cancellationPolicy:
+    "Cancel free of charge up to 24 hours before your arrival date. Inside 24 hours, one night may be charged.",
+  noShowPolicy:
+    "Your room is held until 8:00 pm on your arrival date. If you have not arrived or contacted us by then, the reservation is released and the room offered to other guests. Call or WhatsApp us any time if you are running late — we will hold it for you.",
+  remindersEnabled: true,
+  smsEnabled: true,
 };
 
 export default function SettingsPage() {
@@ -90,7 +129,10 @@ export default function SettingsPage() {
     void _id;
     void _creationTime;
     void key;
-    setValues(rest);
+    // The policy fields were added after the first release, so a row saved
+    // before them has holes. Layering onto DEFAULTS fills them rather than
+    // clearing the form.
+    setValues({ ...DEFAULTS, ...rest });
   }
 
   return (

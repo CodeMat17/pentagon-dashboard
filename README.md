@@ -1,6 +1,6 @@
-# Pentagon Hotel — Dashboard
+# Pentagon International Hotel — Dashboard
 
-The staff dashboard for Pentagon Hotel and Suites. It owns the Convex backend that
+The staff dashboard for Pentagon International Hotel and Suites. It owns the Convex backend that
 the public website reads from.
 
 - **Clerk** authenticates. **Convex** authorizes — a Clerk account grants nothing

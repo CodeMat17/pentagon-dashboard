@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { requireViewer, requireEditor } from "./auth";
+import { throttle } from "./limits";
 
 /** Newsletter list. Re-subscribing an existing address is a no-op, not an error. */
 
@@ -12,6 +13,14 @@ export const subscribe = mutation({
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
     if (!email.includes("@")) throw new Error("That email address does not look right.");
+
+    await throttle(ctx, "subscribePerEmail", email, "That address has just been subscribed.");
+    await throttle(
+      ctx,
+      "subscribeGlobal",
+      undefined,
+      "We are seeing an unusual number of sign-ups right now.",
+    );
 
     const existing = await ctx.db
       .query("subscribers")
@@ -38,9 +47,15 @@ export const unsubscribe = mutation({
   args: { email: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase();
+
+    // Unsubscribing is public and takes nothing but an address, so it is capped
+    // per address as well — one person cannot walk a list off the newsletter.
+    await throttle(ctx, "subscribePerEmail", email, "That address was just updated.");
+
     const existing = await ctx.db
       .query("subscribers")
-      .withIndex("by_email", (q) => q.eq("email", args.email.trim().toLowerCase()))
+      .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
     if (existing) await ctx.db.patch(existing._id, { status: "unsubscribed" });
     return null;

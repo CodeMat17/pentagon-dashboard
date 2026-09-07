@@ -990,9 +990,9 @@ export interface FaqItem {
 }
 
 export const faqs: FaqItem[] = [
-  { category: "Reservations", question: "How do I book a room?", answer: "Book directly on this site for our best available rate — it takes under two minutes and no account is required. You can also call 0803 383 3628, message us on WhatsApp, or email reservations@pentagonhotelandsuites.com." },
+  { category: "Reservations", question: "How do I book a room?", answer: "Book directly on this site for our best available rate — it takes under two minutes and no account is required. You can also call 0803 383 3628, message us on WhatsApp, or email reservations@pentagoninternationalhotel.com." },
   { category: "Reservations", question: "Is booking direct cheaper than the travel sites?", answer: "Yes. We hold back a direct-booking rate that we do not release to third-party channels, and direct bookings get free parking and priority on room-type requests." },
-  { category: "Reservations", question: "Can I modify my reservation?", answer: "Yes. Use Manage Booking with your reference (it starts PHS-), or call us. Changes made outside your rate's cancellation window are free." },
+  { category: "Reservations", question: "Can I modify my reservation?", answer: "Yes. Use Manage Booking with your reference (it starts PIHS-), or call us. Changes made outside your rate's cancellation window are free." },
   { category: "Reservations", question: "What is the cancellation policy?", answer: "Standard and Deluxe rooms cancel free until 24 hours before arrival, Executive rooms until 48 hours, and suites until 72 hours. Inside that window, one night is charged. Package rates carry their own terms, shown before you confirm." },
   { category: "Reservations", question: "Do I need to pay a deposit?", answer: "No deposit is required for standard bookings — you can pay online when you book, or settle at the hotel. Group bookings of five rooms or more, and event bookings, require a 50% deposit to confirm." },
   { category: "Reservations", question: "How do I pay?", answer: "Online on this website through our secure payment provider, or by card, bank transfer or cash at the hotel. Card details are handled by the payment provider and never stored on our servers. Corporate accounts can be invoiced monthly." },

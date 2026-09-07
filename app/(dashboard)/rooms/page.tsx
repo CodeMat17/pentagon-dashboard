@@ -29,7 +29,13 @@ const BEDS = ["King", "Queen", "Twin", "Double"] as const;
 
 const fields: readonly Field[] = [
   { name: "name", label: "Room name", kind: "text" },
-  { name: "slug", label: "URL slug", kind: "slug", hint: "Appears as /rooms/<slug>." },
+  {
+    name: "slug",
+    label: "URL slug",
+    kind: "slug",
+    from: "name",
+    hint: "Generated from the room name. Appears as /rooms/<slug>.",
+  },
   { name: "category", label: "Category", kind: "select", options: CATEGORIES },
   { name: "bed", label: "Bed", kind: "select", options: BEDS },
   { name: "tagline", label: "Tagline", kind: "text", wide: true },
@@ -116,6 +122,15 @@ export default function RoomsPage() {
   );
 
   async function save(values: Values) {
+    // The public site indexes `images[0]` for the room card, the booking flow
+    // and the OpenGraph tag. Convex enforces this too — this is just the
+    // friendlier message, raised before the round trip.
+    if (values.published && (values.images as unknown[]).length === 0) {
+      throw new Error(
+        "A published room needs at least one photograph. Add one, or turn Published off.",
+      );
+    }
+
     // `rackRate` is optional in the schema; 0 in the form means "no rack rate".
     const rackRate = Number(values.rackRate) || undefined;
     const payload = { ...values, rackRate } as never;

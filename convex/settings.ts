@@ -21,6 +21,17 @@ const fields = {
   announcement: v.string(),
   announcementActive: v.boolean(),
   bookingsOpen: v.boolean(),
+
+  /*
+   * Reservation and no-show policy. Optional so that the row as it existed
+   * before these fields, and a save from a client that predates them, both
+   * still validate — `convex/policy.ts` supplies the defaults on read.
+   */
+  holdUntilTime: v.optional(v.string()),
+  cancellationPolicy: v.optional(v.string()),
+  noShowPolicy: v.optional(v.string()),
+  remindersEnabled: v.optional(v.boolean()),
+  smsEnabled: v.optional(v.boolean()),
 };
 
 export const get = query({
@@ -39,6 +50,9 @@ export const save = mutation({
     await requireAdmin(ctx);
     if (args.vatRate < 0 || args.vatRate > 1 || args.serviceRate < 0 || args.serviceRate > 1) {
       throw new Error("Tax rates are fractions between 0 and 1 (0.075 = 7.5%).");
+    }
+    if (args.holdUntilTime && !/^\d{2}:\d{2}$/.test(args.holdUntilTime)) {
+      throw new Error("The hold-until time must be a 24-hour clock time, like 20:00.");
     }
     const existing = await ctx.db
       .query("settings")

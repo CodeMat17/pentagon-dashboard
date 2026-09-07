@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { requireViewer, requireEditor } from "./auth";
+import { throttle } from "./limits";
 
 /**
  * The inbox: contact forms, event quote requests and table reservations.
@@ -35,6 +36,14 @@ export const send = mutation({
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
     if (!email.includes("@")) throw new Error("That email address does not look right.");
+    await throttle(ctx, "messagePerSender", email, "You have sent us several messages already.");
+    await throttle(
+      ctx,
+      "messageGlobal",
+      undefined,
+      "We are receiving an unusual number of messages right now.",
+    );
+
     await ctx.db.insert("messages", {
       ...args,
       email,

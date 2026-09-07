@@ -17,11 +17,11 @@ const nunito = Nunito({
 
 export const metadata: Metadata = {
   title: {
-    default: "Pentagon Hotel · Dashboard",
+    default: "Pentagon International · Dashboard",
     template: "%s · Pentagon Dashboard",
   },
   description:
-    "Manage rooms, offers, reservations and enquiries for Pentagon Hotel and Suites.",
+    "Manage rooms, offers, reservations and enquiries for Pentagon International Hotel and Suites.",
   robots: { index: false, follow: false },
 };
 

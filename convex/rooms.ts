@@ -36,6 +36,20 @@ const fields = {
   published: v.boolean(),
 };
 
+/**
+ * The public site treats `images[0]` as the hero — the room card, the booking
+ * flow thumbnail and the OpenGraph tag all index it unguarded — so a published
+ * room without photography would crash those pages. Publishing is gated here,
+ * on every path that can set the flag, rather than in the form alone.
+ */
+function requirePhotograph(published: boolean, images: { url: string }[]) {
+  if (published && images.length === 0) {
+    throw new Error(
+      "A published room needs at least one photograph. Add one, or save it unpublished.",
+    );
+  }
+}
+
 /* -------------------------------------------------------------------- read */
 
 /** Public. Published rooms in display order, without the detail-page copy. */
@@ -88,6 +102,7 @@ export const create = mutation({
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
     if (clash) throw new Error(`A room already uses the slug "${args.slug}".`);
+    requirePhotograph(args.published, args.images);
     return await ctx.db.insert("rooms", args);
   },
 });
@@ -107,6 +122,8 @@ export const update = mutation({
       if (clash) throw new Error(`A room already uses the slug "${patch.slug}".`);
     }
 
+    requirePhotograph(patch.published, patch.images);
+
     // Images dropped from the gallery lose their storage file too.
     await deleteImages(ctx, orphaned(existing.images, patch.images));
     await ctx.db.patch(id, patch);
@@ -117,6 +134,9 @@ export const setPublished = mutation({
   args: { id: v.id("rooms"), published: v.boolean() },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    const room = await ctx.db.get(args.id);
+    if (!room) throw new Error("That room no longer exists.");
+    requirePhotograph(args.published, room.images);
     await ctx.db.patch(args.id, { published: args.published });
   },
 });

@@ -11,7 +11,7 @@ export default function SignUpPage() {
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-8 p-6">
       <div className="text-center">
-        <p className="eyebrow">Pentagon Hotel and Suites</p>
+        <p className="eyebrow">Pentagon International Hotel and Suites</p>
         <h1 className="mt-2 text-2xl font-extrabold tracking-[-0.02em]">
           Create your staff account
         </h1>
