@@ -24,7 +24,14 @@ import { Switch } from "@/components/ui/switch";
 import { formatNaira } from "@/lib/format";
 import { atLeast } from "@/lib/roles";
 
-const CATEGORIES = ["Standard", "Deluxe", "Executive", "Suite", "Family"] as const;
+const CATEGORIES = [
+  "Standard",
+  "Deluxe",
+  "Premium Deluxe",
+  "Executive",
+  "Suite",
+  "Suite Parlour",
+] as const;
 const BEDS = ["King", "Queen", "Twin", "Double"] as const;
 
 const fields: readonly Field[] = [

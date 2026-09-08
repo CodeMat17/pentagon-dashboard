@@ -8,10 +8,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { SignOutButton, UserButton } from "@clerk/nextjs";
 import { Authenticated, AuthLoading, Unauthenticated, useMutation, useQuery } from "convex/react";
-import { LoaderCircleIcon, MenuIcon, PentagonIcon, ShieldAlertIcon } from "lucide-react";
+import { LoaderCircleIcon, MenuIcon, ShieldAlertIcon } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -137,7 +138,14 @@ function AuthorizedShell({ children }: { children: ReactNode }) {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-2 px-3 py-1">
-      <PentagonIcon className="size-5 text-brand" aria-hidden />
+      <Image
+        src="/logo-3.webp"
+        alt="Pentagon International Hotel and Suites"
+        width={429}
+        height={429}
+        priority
+        className="size-10 rounded-md object-contain"
+      />
       <span className="flex flex-col leading-tight">
         <span className="text-sm font-extrabold tracking-[-0.01em]">Pentagon</span>
         {!compact && (

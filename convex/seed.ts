@@ -140,3 +140,45 @@ export const fromCli = internalAction({
   returns: v.object({ uploaded: v.number(), tables: v.number() }),
   handler: async (ctx) => await importContent(ctx),
 });
+
+/**
+ * Re-import just the room inventory, leaving every other content table alone.
+ * Same download-then-replace shape as `importContent`, scoped to one table.
+ */
+async function importRooms(ctx: ActionCtx): Promise<{ uploaded: number; rooms: number }> {
+  const sources = new Set<string>();
+  for (const room of rooms) for (const img of room.images) sources.add(img.src);
+
+  const stored: Record<string, { storageId: string; url: string }> = {};
+  for (const src of sources) {
+    const response = await fetch(src);
+    if (!response.ok) throw new Error(`Could not download ${src} (${response.status}).`);
+    const blob = await response.blob();
+    const storageId = await ctx.storage.store(blob);
+    const url = await ctx.storage.getUrl(storageId);
+    if (!url) throw new Error(`Stored ${src} but could not resolve its URL.`);
+    stored[src] = { storageId, url };
+  }
+
+  const count: number = await ctx.runMutation(internal.seedInternal.replaceRooms, {
+    rooms: rooms.map((room, order) => ({
+      ...room,
+      images: room.images.map((img) => ({
+        storageId: stored[img.src].storageId,
+        url: stored[img.src].url,
+        alt: img.alt,
+      })),
+      order,
+      published: true,
+    })),
+  });
+
+  return { uploaded: sources.size, rooms: count };
+}
+
+/** `npx convex run seed:roomsOnly` (add `--prod` to target production). */
+export const roomsOnly = internalAction({
+  args: {},
+  returns: v.object({ uploaded: v.number(), rooms: v.number() }),
+  handler: async (ctx) => await importRooms(ctx),
+});

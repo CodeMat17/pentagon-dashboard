@@ -22,9 +22,10 @@ export const bedType = v.union(
 export const roomCategory = v.union(
   v.literal("Standard"),
   v.literal("Deluxe"),
+  v.literal("Premium Deluxe"),
   v.literal("Executive"),
   v.literal("Suite"),
-  v.literal("Family"),
+  v.literal("Suite Parlour"),
 );
 
 /** Where a reservation is in its life, from booked to walked in or released. */

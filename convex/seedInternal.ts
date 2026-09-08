@@ -122,3 +122,22 @@ export const replaceAll = internalMutation({
     return null;
   },
 });
+
+/**
+ * Rooms only — for reworking the room types without touching dining, offers,
+ * FAQs or anything else an admin may have edited since the first import.
+ *
+ * Same wipe-and-rebuild shape as `replaceAll`, scoped to one table, so the
+ * storage files behind the old room photos go with the old rows.
+ */
+export const replaceRooms = internalMutation({
+  args: { rooms: v.array(v.any()) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    await wipe(ctx, "rooms");
+    for (const room of args.rooms) {
+      await ctx.db.insert("rooms", room as never);
+    }
+    return args.rooms.length;
+  },
+});
