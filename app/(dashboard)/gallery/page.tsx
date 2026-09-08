@@ -1,16 +1,22 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useMutation, useQuery } from "convex/react";
-import { CheckIcon, ImagePlusIcon, LoaderCircleIcon, Trash2Icon } from "lucide-react";
+import {
+  CheckIcon,
+  ImagePlusIcon,
+  LoaderCircleIcon,
+  PencilIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { useViewer } from "@/components/dashboard/shell";
-import { EmptyState, ListSkeleton } from "@/components/dashboard/list";
+import { DeleteButton, EmptyState, ListSkeleton } from "@/components/dashboard/list";
 import { cleanError } from "@/components/dashboard/record-form";
 import { useImageUpload, type StoredImage } from "@/components/dashboard/image-input";
 import {
@@ -24,6 +30,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,10 +54,19 @@ import { cn } from "@/lib/utils";
 
 /**
  * The gallery is the one bulk screen: photographs arrive a dozen at a time, so
- * uploading, categorising and deleting all work on a selection rather than a row.
+ * uploading works on a batch. Everything after that is per-image and explicit —
+ * each card carries its own Edit and Delete, and the corner checkbox exists only
+ * for the bulk delete.
  */
 
 const CATEGORIES = ["Hotel", "Rooms", "Dining", "Pool & Spa", "Events", "Surroundings"];
+
+/** An image already in Convex storage, waiting for its alt text before it is saved. */
+interface Staged {
+  image: StoredImage;
+  category: string;
+  tall: boolean;
+}
 
 export default function GalleryPage() {
   const viewer = useViewer();
@@ -60,12 +83,18 @@ export default function GalleryPage() {
   const [filter, setFilter] = useState("All");
   const [selected, setSelected] = useState<Set<Id<"galleryImages">>>(new Set());
   const [uploadCategory, setUploadCategory] = useState(CATEGORIES[0]);
+  const [staged, setStaged] = useState<Staged[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<Id<"galleryImages"> | null>(null);
 
   const shown = useMemo(() => {
     const all = images ?? [];
     return filter === "All" ? all : all.filter((img) => img.category === filter);
   }, [images, filter]);
 
+  const editingItem = (images ?? []).find((img) => img._id === editing) ?? null;
+
+  /** Upload the files first, then hold them in the dialog so alt text can be typed. */
   async function handleFiles(files: File[]) {
     const uploaded: StoredImage[] = [];
     for (const file of files) {
@@ -73,20 +102,26 @@ export default function GalleryPage() {
       if (image) uploaded.push(image);
     }
     if (!uploaded.length) return;
+    setStaged(uploaded.map((image) => ({ image, category: uploadCategory, tall: false })));
+  }
 
+  async function saveStaged() {
+    if (!staged) return;
+    setSaving(true);
     try {
       await addMany({
-        images: uploaded.map((image) => ({
-          image,
-          category: uploadCategory,
-          tall: false,
+        images: staged.map(({ image, category, tall }) => ({
+          image: { ...image, alt: image.alt.trim() },
+          category,
+          tall,
         })),
       });
-      toast.success(
-        `${uploaded.length} image${uploaded.length === 1 ? "" : "s"} added to ${uploadCategory}. Add alt text below.`,
-      );
+      toast.success(`${staged.length} image${staged.length === 1 ? "" : "s"} added.`);
+      setStaged(null);
     } catch (error) {
       toast.error(cleanError(error));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -230,13 +265,7 @@ export default function GalleryPage() {
                   isSelected ? "border-brand ring-2 ring-brand/30" : "border-border",
                 )}
               >
-                <button
-                  type="button"
-                  onClick={() => canEdit && toggle(item._id)}
-                  className="relative block aspect-4/3 w-full bg-muted"
-                  aria-pressed={isSelected}
-                  aria-label={`Select ${item.image.alt || "image"}`}
-                >
+                <div className="relative aspect-4/3 w-full bg-muted">
                   <Image
                     src={item.image.url}
                     alt={item.image.alt}
@@ -244,51 +273,138 @@ export default function GalleryPage() {
                     sizes="(min-width: 1280px) 22rem, (min-width: 640px) 45vw, 90vw"
                     className="object-cover"
                   />
-                  {isSelected && (
-                    <span className="absolute top-2 right-2 rounded-full bg-brand p-1 text-brand-foreground">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => toggle(item._id)}
+                      aria-pressed={isSelected}
+                      aria-label={`Select ${item.image.alt || "image"} for bulk delete`}
+                      className={cn(
+                        "absolute top-2 left-2 grid size-7 place-items-center rounded-full border shadow-sm transition",
+                        isSelected
+                          ? "border-brand bg-brand text-brand-foreground"
+                          : "border-border bg-background/90 text-transparent hover:text-muted-foreground",
+                      )}
+                    >
                       <CheckIcon className="size-4" />
-                    </span>
+                    </button>
                   )}
-                </button>
+                </div>
 
                 <div className="space-y-2 p-3">
+                  <p
+                    className={cn(
+                      "line-clamp-2 min-h-10 text-sm",
+                      item.image.alt.trim()
+                        ? "text-foreground"
+                        : "text-muted-foreground italic",
+                    )}
+                  >
+                    {item.image.alt.trim() || "No alt text"}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-border px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                      {item.category}
+                    </span>
+                    {item.tall && (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                        Tall
+                      </span>
+                    )}
+
+                    {canEdit && (
+                      <div className="ml-auto flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditing(item._id)}
+                        >
+                          <PencilIcon /> Edit
+                        </Button>
+                        <DeleteButton
+                          label="image"
+                          description="The file is removed from Convex storage permanently. Any page still pointing at it will show a gap."
+                          onConfirm={async () => {
+                            await removeMany({ ids: [item._id] });
+                            setSelected((current) => {
+                              const next = new Set(current);
+                              next.delete(item._id);
+                              return next;
+                            });
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* ------------------------------------------------ alt text on upload */}
+      <Dialog
+        open={staged !== null}
+        onOpenChange={(open) => {
+          if (!open && !saving) setStaged(null);
+        }}
+      >
+        <DialogContent className="max-h-[90svh] w-[min(48rem,calc(100vw-2rem))] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {staged?.length === 1
+                ? "Describe this image"
+                : `Describe these ${staged?.length ?? 0} images`}
+            </DialogTitle>
+            <DialogDescription>
+              The files are uploaded already. Give each one alt text and a category,
+              then add them to the gallery.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="space-y-3">
+            {(staged ?? []).map((entry, index) => (
+              <li
+                key={entry.image.storageId}
+                className="flex flex-wrap items-start gap-3 rounded-xl border border-border p-3"
+              >
+                <div className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+                  <Image
+                    src={entry.image.url}
+                    alt={entry.image.alt || `Uploaded image ${index + 1}`}
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="min-w-48 flex-1 space-y-2">
                   <Input
-                    defaultValue={item.image.alt}
+                    autoFocus={index === 0}
+                    value={entry.image.alt}
                     placeholder="Alt text — describe the photo"
-                    disabled={!canEdit}
-                    onBlur={async (event) => {
+                    onChange={(event) => {
                       const alt = event.target.value;
-                      if (alt === item.image.alt) return;
-                      try {
-                        await update({
-                          id: item._id,
-                          alt,
-                          category: item.category,
-                          tall: item.tall,
-                        });
-                      } catch (error) {
-                        toast.error(cleanError(error));
-                      }
+                      setStaged((current) =>
+                        (current ?? []).map((s, i) =>
+                          i === index ? { ...s, image: { ...s.image, alt } } : s,
+                        ),
+                      );
                     }}
                   />
                   <div className="flex items-center gap-2">
                     <Select
                       items={CATEGORIES.map((c) => ({ value: c, label: c }))}
-                      value={item.category}
-                      onValueChange={async (value) => {
-                        try {
-                          await update({
-                            id: item._id,
-                            alt: item.image.alt,
-                            category: value as string,
-                            tall: item.tall,
-                          });
-                        } catch (error) {
-                          toast.error(cleanError(error));
-                        }
-                      }}
+                      value={entry.category}
+                      onValueChange={(value) =>
+                        setStaged((current) =>
+                          (current ?? []).map((s, i) =>
+                            i === index ? { ...s, category: value as string } : s,
+                          ),
+                        )
+                      }
                     >
-                      <SelectTrigger className="h-9 flex-1" disabled={!canEdit}>
+                      <SelectTrigger className="h-9 flex-1">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -299,33 +415,169 @@ export default function GalleryPage() {
                         ))}
                       </SelectContent>
                     </Select>
-
                     <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                       Tall
                       <Switch
-                        checked={item.tall}
-                        disabled={!canEdit}
-                        onCheckedChange={async (tall) => {
-                          try {
-                            await update({
-                              id: item._id,
-                              alt: item.image.alt,
-                              category: item.category,
-                              tall,
-                            });
-                          } catch (error) {
-                            toast.error(cleanError(error));
-                          }
-                        }}
+                        checked={entry.tall}
+                        onCheckedChange={(tall) =>
+                          setStaged((current) =>
+                            (current ?? []).map((s, i) =>
+                              i === index ? { ...s, tall } : s,
+                            ),
+                          )
+                        }
                       />
                     </label>
                   </div>
                 </div>
               </li>
-            );
-          })}
-        </ul>
-      )}
+            ))}
+          </ul>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStaged(null)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={saveStaged} disabled={saving}>
+              {saving && <LoaderCircleIcon className="animate-spin" />}
+              Add to gallery
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------------------------------------------- edit dialog */}
+      <EditDialog
+        key={editingItem?._id ?? "none"}
+        item={editingItem}
+        onClose={() => setEditing(null)}
+        onSave={update}
+      />
     </>
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+
+function EditDialog({
+  item,
+  onClose,
+  onSave,
+}: {
+  item: Doc<"galleryImages"> | null;
+  onClose: () => void;
+  onSave: (args: {
+    id: Id<"galleryImages">;
+    alt: string;
+    category: string;
+    tall: boolean;
+  }) => Promise<unknown>;
+}) {
+  const [alt, setAlt] = useState(item?.image.alt ?? "");
+  const [category, setCategory] = useState(item?.category ?? CATEGORIES[0]);
+  const [tall, setTall] = useState(item?.tall ?? false);
+  const [saving, setSaving] = useState(false);
+
+  // The dialog is remounted per image (see `key`), so this only re-syncs when the
+  // row itself changes underneath — another editor saving while this one is open.
+  useEffect(() => {
+    if (!item) return;
+    setAlt(item.image.alt);
+    setCategory(item.category);
+    setTall(item.tall);
+  }, [item]);
+
+  return (
+    <Dialog
+      open={item !== null}
+      onOpenChange={(open) => {
+        if (!open && !saving) onClose();
+      }}
+    >
+      <DialogContent className="w-[min(32rem,calc(100vw-2rem))]">
+        <DialogHeader>
+          <DialogTitle>Edit image</DialogTitle>
+          <DialogDescription>
+            Alt text is read aloud by screen readers and indexed by search engines.
+          </DialogDescription>
+        </DialogHeader>
+
+        {item && (
+          <form
+            className="space-y-4"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setSaving(true);
+              try {
+                await onSave({ id: item._id, alt: alt.trim(), category, tall });
+                toast.success("Image updated.");
+                onClose();
+              } catch (error) {
+                toast.error(cleanError(error));
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            <div className="relative aspect-4/3 w-full overflow-hidden rounded-lg bg-muted">
+              <Image
+                src={item.image.url}
+                alt={alt || "Gallery image"}
+                fill
+                sizes="32rem"
+                className="object-cover"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-alt">Alt text</Label>
+              <Input
+                id="edit-alt"
+                autoFocus
+                value={alt}
+                placeholder="Describe the photo"
+                onChange={(event) => setAlt(event.target.value)}
+              />
+            </div>
+
+            <div className="flex items-end gap-3">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Select
+                  items={CATEGORIES.map((c) => ({ value: c, label: c }))}
+                  value={category}
+                  onValueChange={(value) => setCategory(value as string)}
+                >
+                  <SelectTrigger id="edit-category" className="h-10 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="flex h-10 items-center gap-2 text-sm font-semibold text-muted-foreground">
+                Tall
+                <Switch checked={tall} onCheckedChange={setTall} />
+              </label>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving && <LoaderCircleIcon className="animate-spin" />}
+                Save changes
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
