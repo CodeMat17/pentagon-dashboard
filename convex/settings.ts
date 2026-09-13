@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import { requireAdmin } from "./auth";
+import { siteChanged } from "./site";
 
 /**
  * A single row, keyed `"site"` — the contact details, tax rates and kill switches
@@ -48,6 +49,7 @@ export const save = mutation({
   args: fields,
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
+    await siteChanged(ctx);
     if (args.vatRate < 0 || args.vatRate > 1 || args.serviceRate < 0 || args.serviceRate > 1) {
       throw new Error("Tax rates are fractions between 0 and 1 (0.075 = 7.5%).");
     }

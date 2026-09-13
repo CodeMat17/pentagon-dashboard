@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { image } from "./schema";
 import { requireEditor } from "./auth";
+import { siteChanged } from "./site";
 import { deleteImages } from "./files";
 
 /**
@@ -25,6 +26,7 @@ export const addMany = mutation({
   },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     // One read to find the tail of the order sequence, then straight appends.
     const last = await ctx.db.query("galleryImages").withIndex("by_order").order("desc").first();
     let order = (last?.order ?? -1) + 1;
@@ -43,6 +45,7 @@ export const update = mutation({
   },
   handler: async (ctx, { id, alt, category, tall }) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const existing = await ctx.db.get(id);
     if (!existing) return;
     await ctx.db.patch(id, {
@@ -57,6 +60,7 @@ export const removeMany = mutation({
   args: { ids: v.array(v.id("galleryImages")) },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
     const present = docs.filter((doc) => doc !== null);
     await deleteImages(ctx, present.map((doc) => doc.image));
@@ -68,6 +72,7 @@ export const reorder = mutation({
   args: { ids: v.array(v.id("galleryImages")) },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await Promise.all(args.ids.map((id, index) => ctx.db.patch(id, { order: index })));
   },
 });

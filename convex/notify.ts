@@ -578,6 +578,8 @@ export const runReminderSweep = internalAction({
       console.log(`[notify] released ${released.length} unclaimed room(s): ${released.join(", ")}`);
     }
 
+    await ctx.runMutation(internal.bookings.completeFinishedStays, {});
+
     return null;
   },
 });

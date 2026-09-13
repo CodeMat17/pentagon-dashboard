@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import { requireEditor } from "./auth";
+import { siteChanged } from "./site";
 
 const fields = {
   author: v.string(),
@@ -50,6 +51,7 @@ export const create = mutation({
   args: fields,
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     if (args.rating < 1 || args.rating > 5) throw new Error("Rating must be 1–5.");
     return await ctx.db.insert("reviews", args);
   },
@@ -59,6 +61,7 @@ export const update = mutation({
   args: { id: v.id("reviews"), ...fields },
   handler: async (ctx, { id, ...patch }) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     if (patch.rating < 1 || patch.rating > 5) throw new Error("Rating must be 1–5.");
     await ctx.db.patch(id, patch);
   },
@@ -68,6 +71,7 @@ export const setPublished = mutation({
   args: { id: v.id("reviews"), published: v.boolean() },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await ctx.db.patch(args.id, { published: args.published });
   },
 });
@@ -76,6 +80,7 @@ export const remove = mutation({
   args: { id: v.id("reviews") },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await ctx.db.delete(args.id);
   },
 });

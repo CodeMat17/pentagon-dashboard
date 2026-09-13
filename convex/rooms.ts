@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { bedType, image, roomCategory } from "./schema";
 import { requireEditor } from "./auth";
+import { siteChanged } from "./site";
 import { deleteImages, orphaned } from "./files";
 
 /**
@@ -97,6 +98,7 @@ export const create = mutation({
   args: fields,
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const clash = await ctx.db
       .query("rooms")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
@@ -111,6 +113,7 @@ export const update = mutation({
   args: { id: v.id("rooms"), ...fields },
   handler: async (ctx, { id, ...patch }) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("That room no longer exists.");
 
@@ -134,6 +137,7 @@ export const setPublished = mutation({
   args: { id: v.id("rooms"), published: v.boolean() },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const room = await ctx.db.get(args.id);
     if (!room) throw new Error("That room no longer exists.");
     requirePhotograph(args.published, room.images);
@@ -145,6 +149,7 @@ export const remove = mutation({
   args: { id: v.id("rooms") },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const room = await ctx.db.get(args.id);
     if (!room) return;
     await deleteImages(ctx, room.images);
@@ -157,6 +162,7 @@ export const reorder = mutation({
   args: { ids: v.array(v.id("rooms")) },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await Promise.all(
       args.ids.map((id, index) => ctx.db.patch(id, { order: index })),
     );

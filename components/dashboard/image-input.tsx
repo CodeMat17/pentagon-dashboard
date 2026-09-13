@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { ImagePlusIcon, LoaderCircleIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,7 +14,9 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export interface StoredImage {
-  storageId: Id<"_storage">;
+  publicId?: string;
+  /** Only on images uploaded before the move to Cloudinary. */
+  storageId?: Id<"_storage">;
   url: string;
   alt: string;
 }
@@ -22,13 +24,13 @@ export interface StoredImage {
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /**
- * Uploads straight from the browser to Convex storage — the bytes never touch
- * this Next.js server. `files.finalize` then resolves the permanent URL once and
- * hands back the `{ storageId, url, alt }` shape stored on the content row.
+ * Uploads straight from the browser to Cloudinary — the bytes never touch this
+ * Next.js server. `files.signUpload` (Convex, editors only) signs the request so
+ * the API secret never reaches the browser; Cloudinary hands back the
+ * `{ publicId, url }` stored on the content row.
  */
 export function useImageUpload() {
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
-  const finalize = useMutation(api.files.finalize);
+  const signUpload = useAction(api.files.signUpload);
   const [uploading, setUploading] = useState(false);
 
   async function upload(file: File, alt = ""): Promise<StoredImage | null> {
@@ -43,15 +45,20 @@ export function useImageUpload() {
 
     setUploading(true);
     try {
-      const postUrl = await generateUploadUrl({});
-      const response = await fetch(postUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
+      const { cloudName, ...signed } = await signUpload({});
+      const body = new FormData();
+      body.append("file", file);
+      body.append("api_key", signed.apiKey);
+      body.append("folder", signed.folder);
+      body.append("timestamp", signed.timestamp);
+      body.append("signature", signed.signature);
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: "POST", body },
+      );
       if (!response.ok) throw new Error(`Upload failed (${response.status}).`);
-      const { storageId } = (await response.json()) as { storageId: Id<"_storage"> };
-      return await finalize({ storageId, alt });
+      const result = (await response.json()) as { public_id: string; secure_url: string };
+      return { publicId: result.public_id, url: result.secure_url, alt };
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed.");
       return null;
@@ -183,7 +190,7 @@ export function ImagesInput({
         <ul className="space-y-2">
           {value.map((img, index) => (
             <li
-              key={img.storageId}
+              key={img.url}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-2"
             >
               <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted">

@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { requireAdmin, requireEditor } from "./auth";
+import { siteChanged } from "./site";
 
 /**
  * The two levers that change what a guest pays: bookable extras, and promo codes.
@@ -49,6 +50,7 @@ export const createExtra = mutation({
   args: extraFields,
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const clash = await ctx.db
       .query("extraServices")
       .withIndex("by_key", (q) => q.eq("key", args.key))
@@ -62,6 +64,7 @@ export const updateExtra = mutation({
   args: { id: v.id("extraServices"), ...extraFields },
   handler: async (ctx, { id, ...patch }) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await ctx.db.patch(id, patch);
   },
 });
@@ -70,6 +73,7 @@ export const removeExtra = mutation({
   args: { id: v.id("extraServices") },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await ctx.db.delete(args.id);
   },
 });
@@ -113,6 +117,7 @@ export const createPromo = mutation({
   },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     const code = args.code.trim().toUpperCase();
     if (args.discount <= 0 || args.discount >= 1) {
       throw new Error("Discount must be between 0 and 1 (0.15 = 15% off).");
@@ -136,6 +141,7 @@ export const updatePromo = mutation({
   },
   handler: async (ctx, { id, ...patch }) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     if (patch.discount <= 0 || patch.discount >= 1) {
       throw new Error("Discount must be between 0 and 1 (0.15 = 15% off).");
     }
@@ -147,6 +153,7 @@ export const removePromo = mutation({
   args: { id: v.id("promoCodes") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
+    await siteChanged(ctx);
     await ctx.db.delete(args.id);
   },
 });

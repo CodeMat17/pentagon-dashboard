@@ -2,12 +2,13 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 /**
- * Every image is stored denormalised: the storage id (so the file can be deleted
- * along with the row) *and* the resolved URL (so no read path has to await
- * `ctx.storage.getUrl`). Convex storage URLs are stable for the life of the file.
+ * Images are hosted on Cloudinary: `publicId` (so the file can be deleted along
+ * with the row) and the delivery `url`. `storageId` only exists on rows written
+ * before the move off Convex storage, and is deleted from there instead.
  */
 export const image = v.object({
-  storageId: v.id("_storage"),
+  publicId: v.optional(v.string()),
+  storageId: v.optional(v.id("_storage")),
   url: v.string(),
   alt: v.string(),
 });
@@ -317,7 +318,9 @@ export default defineSchema({
     .index("by_reference", ["reference"])
     .index("by_status", ["status"])
     .index("by_checkIn", ["checkIn"])
-    .index("by_status_checkIn", ["status", "checkIn"]),
+    .index("by_status_checkIn", ["status", "checkIn"])
+    .index("by_status_checkOut", ["status", "checkOut"])
+    .index("by_roomSlug_checkOut", ["roomSlug", "checkOut"]),
 
   messages: defineTable({
     kind: v.union(

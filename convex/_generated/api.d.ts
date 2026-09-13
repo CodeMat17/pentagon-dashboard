@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as bookings from "../bookings.js";
+import type * as cloudinary from "../cloudinary.js";
 import type * as crons from "../crons.js";
 import type * as dining from "../dining.js";
 import type * as directory from "../directory.js";
@@ -30,6 +31,7 @@ import type * as seed from "../seed.js";
 import type * as seedData from "../seedData.js";
 import type * as seedInternal from "../seedInternal.js";
 import type * as settings from "../settings.js";
+import type * as site from "../site.js";
 import type * as stats from "../stats.js";
 import type * as subscribers from "../subscribers.js";
 import type * as users from "../users.js";
@@ -44,6 +46,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   bookings: typeof bookings;
+  cloudinary: typeof cloudinary;
   crons: typeof crons;
   dining: typeof dining;
   directory: typeof directory;
@@ -64,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   seedData: typeof seedData;
   seedInternal: typeof seedInternal;
   settings: typeof settings;
+  site: typeof site;
   stats: typeof stats;
   subscribers: typeof subscribers;
   users: typeof users;

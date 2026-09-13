@@ -4,7 +4,9 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
-      // Convex storage — every photograph the dashboard uploads is served from here.
+      // Cloudinary — every photograph the dashboard uploads is served from here.
+      { protocol: "https", hostname: "res.cloudinary.com", pathname: "/**" },
+      // Convex storage — images uploaded before the move to Cloudinary.
       { protocol: "https", hostname: "*.convex.cloud", pathname: "/**" },
     ],
     minimumCacheTTL: 2592000,

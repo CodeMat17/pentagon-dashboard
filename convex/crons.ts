@@ -32,4 +32,16 @@ crons.interval(
   {},
 );
 
+/**
+ * Check-out. At 12:00 noon Lagos time (11:00 UTC) every stay whose check-out
+ * date is today is marked completed and its room goes back on sale. The hourly
+ * sweep runs the same idempotent mutation as a safety net.
+ */
+crons.cron(
+  "complete stays at check-out",
+  "0 11 * * *",
+  internal.bookings.completeFinishedStays,
+  {},
+);
+
 export default crons;

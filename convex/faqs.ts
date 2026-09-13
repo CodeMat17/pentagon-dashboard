@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import { requireEditor } from "./auth";
+import { siteChanged } from "./site";
 
 const fields = {
   category: v.string(),
@@ -31,6 +32,7 @@ export const create = mutation({
   args: fields,
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     return await ctx.db.insert("faqs", args);
   },
 });
@@ -39,6 +41,7 @@ export const update = mutation({
   args: { id: v.id("faqs"), ...fields },
   handler: async (ctx, { id, ...patch }) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await ctx.db.patch(id, patch);
   },
 });
@@ -47,6 +50,7 @@ export const remove = mutation({
   args: { id: v.id("faqs") },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await ctx.db.delete(args.id);
   },
 });
@@ -55,6 +59,7 @@ export const reorder = mutation({
   args: { ids: v.array(v.id("faqs")) },
   handler: async (ctx, args) => {
     await requireEditor(ctx);
+    await siteChanged(ctx);
     await Promise.all(args.ids.map((id, index) => ctx.db.patch(id, { order: index })));
   },
 });

@@ -4,7 +4,13 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { DataModel, TableNames } from "./_generated/dataModel";
 import { requireAdmin } from "./auth";
+import { deleteImages } from "./files";
+import type { Infer } from "convex/values";
+import type { image } from "./schema";
+
+type StoredImage = Infer<typeof image>;
 import { DEFAULTS } from "./policy";
+import { siteChanged } from "./site";
 
 /**
  * Database half of `seed.ts`.
@@ -46,17 +52,11 @@ type ContentTable = (typeof CONTENT_TABLES)[number];
 async function wipe(ctx: MutationCtx, table: ContentTable) {
   const docs = await ctx.db.query(table).collect();
   for (const doc of docs) {
-    // Storage files go with the rows that referenced them.
+    // Image files go with the rows that referenced them.
     const record = doc as Record<string, unknown>;
-    const single = record.image as { storageId?: string } | undefined;
-    const many = record.images as { storageId?: string }[] | undefined;
-    const ids = [
-      ...(single?.storageId ? [single.storageId] : []),
-      ...(many ?? []).flatMap((img) => (img.storageId ? [img.storageId] : [])),
-    ];
-    for (const id of ids) {
-      await ctx.storage.delete(id as never).catch(() => undefined);
-    }
+    const single = record.image as StoredImage | undefined;
+    const many = record.images as StoredImage[] | undefined;
+    await deleteImages(ctx, [...(single ? [single] : []), ...(many ?? [])]);
     await ctx.db.delete(doc._id);
   }
 }
@@ -79,6 +79,7 @@ export const replaceAll = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await siteChanged(ctx);
     // No guard here on purpose: an internal mutation is unreachable from any
     // client, and its two callers are `seed:run` (admin-checked) and
     // `seed:fromCli` (reachable only with deploy credentials).
@@ -134,6 +135,7 @@ export const replaceRooms = internalMutation({
   args: { rooms: v.array(v.any()) },
   returns: v.number(),
   handler: async (ctx, args) => {
+    await siteChanged(ctx);
     await wipe(ctx, "rooms");
     for (const room of args.rooms) {
       await ctx.db.insert("rooms", room as never);

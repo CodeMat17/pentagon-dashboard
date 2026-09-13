@@ -366,7 +366,7 @@ export default function GalleryPage() {
           <ul className="space-y-3">
             {(staged ?? []).map((entry, index) => (
               <li
-                key={entry.image.storageId}
+                key={entry.image.url}
                 className="flex flex-wrap items-start gap-3 rounded-xl border border-border p-3"
               >
                 <div className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-muted">

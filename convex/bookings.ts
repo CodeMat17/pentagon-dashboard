@@ -97,7 +97,58 @@ async function byRef(
     .unique();
 }
 
+/** Statuses that occupy a room. `completed`, `cancelled` and `no-show` free it. */
+const OCCUPYING = new Set<Doc<"bookings">["status"]>(["pending", "confirmed", "checked-in"]);
+
+/**
+ * Rooms of one type already taken on any night of `[checkIn, checkOut)`.
+ *
+ * Nights are half-open: a stay 14th→15th and a stay 15th→16th do not overlap,
+ * because the first guest leaves at noon on the 15th.
+ */
+async function roomsBooked(
+  ctx: QueryCtx | MutationCtx,
+  roomSlug: string,
+  checkIn: string,
+  checkOut: string,
+): Promise<number> {
+  const overlapping = await ctx.db
+    .query("bookings")
+    .withIndex("by_roomSlug_checkOut", (q) =>
+      q.eq("roomSlug", roomSlug).gt("checkOut", checkIn),
+    )
+    .take(1000);
+  let count = 0;
+  for (const booking of overlapping) {
+    if (booking.checkIn < checkOut && OCCUPYING.has(booking.status)) {
+      count += booking.roomCount;
+    }
+  }
+  return count;
+}
+
 /* ------------------------------------------------------------------ public */
+
+/**
+ * Public. Rooms left per room type for a stay, from real reservations.
+ * A booking stops counting the moment it is marked completed at check-out.
+ */
+export const availability = query({
+  args: { checkIn: v.string(), checkOut: v.string() },
+  returns: v.record(v.string(), v.number()),
+  handler: async (ctx, args) => {
+    const rooms = await ctx.db
+      .query("rooms")
+      .withIndex("by_published_order", (q) => q.eq("published", true))
+      .collect();
+    const result: Record<string, number> = {};
+    for (const room of rooms) {
+      const booked = await roomsBooked(ctx, room.slug, args.checkIn, args.checkOut);
+      result[room.slug] = Math.max(0, room.inventory - booked);
+    }
+    return result;
+  },
+});
 
 export const create = mutation({
   args: {
@@ -173,6 +224,17 @@ export const create = mutation({
      * settle against: it needs to be right, not to be defended.
      */
     const quote = await quoteStay(ctx, args);
+
+    // Inventory is enforced here, in the same transaction as the insert, so two
+    // guests racing for the last room cannot both get it.
+    const room = await ctx.db
+      .query("rooms")
+      .withIndex("by_slug", (q) => q.eq("slug", args.roomSlug))
+      .unique();
+    const booked = await roomsBooked(ctx, args.roomSlug, args.checkIn, args.checkOut);
+    if (room && booked + Math.max(1, Math.floor(args.roomCount)) > room.inventory) {
+      throw new Error("Sorry — that room is fully booked for those dates. Please choose another.");
+    }
 
     const policy = await getPolicy(ctx);
     const holdUntil = holdUntilFor(args.checkIn, policy.holdUntilTime);
@@ -553,5 +615,45 @@ export const releaseExpiredHolds = internalMutation({
       released.push(booking.reference);
     }
     return released;
+  },
+});
+
+/**
+ * Check-out: once the check-out time (12:00 by default) has passed on a stay's
+ * departure date, the stay is marked `completed` (or `no-show` if it was still
+ * `pending`) and its room is free again.
+ *
+ * Idempotent — the cron runs it at noon and the hourly sweep repeats it, so a
+ * late or missed run still catches up.
+ */
+export const completeFinishedStays = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const policy = await getPolicy(ctx);
+    const today = todayInLagos(now);
+    const pastCheckOutToday = holdExpiresAt(holdUntilFor(today, policy.checkOut)) <= now;
+    const lastDate = pastCheckOutToday ? today : shiftDate(today, -1);
+
+    let full = false;
+    for (const status of ["confirmed", "checked-in", "pending"] as const) {
+      const due = await ctx.db
+        .query("bookings")
+        .withIndex("by_status_checkOut", (q) =>
+          q.eq("status", status).lte("checkOut", lastDate),
+        )
+        .take(200);
+      // A pending booking was never taken up, so it is a no-show, not a stay.
+      const next = status === "pending" ? "no-show" : "completed";
+      for (const booking of due) {
+        await ctx.db.patch(booking._id, { status: next });
+      }
+      if (due.length === 200) full = true;
+    }
+    if (full) {
+      await ctx.scheduler.runAfter(0, internal.bookings.completeFinishedStays, {});
+    }
+    return null;
   },
 });
